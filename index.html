@@ -6,13 +6,12 @@
 <title>ARG puzzles</title>
 <style>
   :root {
-    --bg: #15132a;
-    --panel: #201d3d;
-    --text: #ece8fa;
-    --muted: #a9a3c9;
-    --accent: #f2c14e;
-    --good: #7be0a4;
-    --bad: #ff8a8a;
+    --bg: #0f0f0f;
+    --panel: #1b1b1b;
+    --line: #3a3a3a;
+    --text: #ececec;
+    --muted: #9a9a9a;
+    --bright: #ffffff;
   }
   * { box-sizing: border-box; }
   body {
@@ -22,11 +21,6 @@
     font-family: "Trebuchet MS", system-ui, sans-serif;
     line-height: 1.5;
   }
-  main {
-    max-width: 560px;
-    margin: 0 auto;
-    padding: 48px 20px;
-  }
   #bg {
     position: fixed;
     inset: 0;
@@ -35,15 +29,22 @@
     z-index: -1;
     pointer-events: none;
   }
+  main {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 48px 20px;
+  }
   h1 { margin: 0 0 6px; font-size: 1.9rem; text-align: center; }
   #timer {
     margin: 0 0 24px;
-    font-size: 1.4rem;
-    font-variant-numeric: tabular-nums;
-    color: var(--accent);
+    text-align: center;
+    font-family: Consolas, Menlo, "Courier New", monospace;
+    font-size: 1.6rem;
+    color: var(--bright);
   }
   #start-screen { text-align: center; padding-top: 30vh; }
   #start-screen button { padding: 14px 40px; font-size: 1.3rem; }
+
   .row {
     background: var(--panel);
     border-radius: 10px;
@@ -59,41 +60,107 @@
     font-size: 1rem;
     color: var(--text);
     background: var(--bg);
-    border: 2px solid #3a3666;
+    border: 2px solid var(--line);
     border-radius: 6px;
   }
-  input:focus { outline: none; border-color: var(--accent); }
+  input:focus { outline: none; border-color: var(--text); }
   button {
     padding: 10px 18px;
     font-size: 1rem;
     font-weight: bold;
-    color: #1b1730;
-    background: var(--accent);
+    color: #111;
+    background: var(--text);
     border: none;
     border-radius: 6px;
     cursor: pointer;
   }
-  button:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+  button:focus-visible { outline: 3px solid var(--bright); outline-offset: 2px; }
   button:disabled, input:disabled { opacity: 0.6; cursor: default; }
+
   .status { min-height: 1.5em; margin: 8px 0 0; font-size: 0.95rem; }
-  .status.good { color: var(--good); }
-  .status.bad { color: var(--bad); }
-  /* "Incorrect" stays fully visible for a moment, then fades out. */
-  .status.fade { animation: fadeOut 2.5s ease-out forwards; }
+  .status.good { color: var(--bright); }
+  .status.bad { color: var(--muted); }
+  /* "Incorrect" stays visible for a moment, then fades out. */
+  .status.fade { animation: fadeOut 1.8s ease-out forwards; }
   @keyframes fadeOut {
-    0%, 60% { opacity: 1; }
+    0%, 50% { opacity: 1; }
     100% { opacity: 0; }
   }
+
+  /* A solved puzzle box pulses once, then keeps a white outline. */
+  .row.solved {
+    box-shadow:
+      inset 0 0 0 2px var(--text),
+      0 0 18px rgba(255, 255, 255, 0.12),
+      0 0 0 14px rgba(255, 255, 255, 0);
+    animation: solvedPulse 0.9s ease-out;
+  }
+  @keyframes solvedPulse {
+    0% {
+      transform: scale(1);
+      box-shadow:
+        inset 0 0 0 0 var(--bright),
+        0 0 0 rgba(255, 255, 255, 0),
+        0 0 0 0 rgba(255, 255, 255, 0.6);
+    }
+    30% {
+      transform: scale(1.025);
+      box-shadow:
+        inset 0 0 0 2px var(--bright),
+        0 0 30px rgba(255, 255, 255, 0.4),
+        0 0 0 5px rgba(255, 255, 255, 0.3);
+    }
+    100% {
+      transform: scale(1);
+      box-shadow:
+        inset 0 0 0 2px var(--text),
+        0 0 18px rgba(255, 255, 255, 0.12),
+        0 0 0 14px rgba(255, 255, 255, 0);
+    }
+  }
+
   #done {
     margin-top: 26px;
     padding: 18px;
     text-align: center;
     font-size: 1.3rem;
     font-weight: bold;
-    color: #1b1730;
-    background: var(--good);
+    color: #111;
+    background: var(--text);
     border-radius: 10px;
   }
+
+  /* Black overlay: fades to black on Start, shows the countdown, then fades away. */
+  #curtain {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.2s ease;
+  }
+  #curtain.on {
+    opacity: 1;
+    pointer-events: auto;
+    transition: opacity 0.4s ease;
+  }
+  #count {
+    font-size: 7rem;
+    font-weight: bold;
+    color: var(--text);
+    opacity: 0;
+  }
+  #count.flash { animation: countFlash 0.9s ease-out forwards; }
+  @keyframes countFlash {
+    0%   { opacity: 0; transform: scale(0.85); }
+    20%  { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.15); }
+  }
+
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -106,11 +173,12 @@
 
   <div id="game" hidden>
     <h1>Color + Noun → Answer</h1>
-    <p id="timer">0:00.0</p>
+    <p id="timer">00:00.000</p>
     <div id="rows"></div>
     <div id="done" hidden>Congratulations! You got all 4 correct.</div>
   </div>
 </main>
+<div id="curtain" aria-hidden="true"><div id="count"></div></div>
 
 <script>
   // Answers are stored as hashes, so they can't be read from this page.
@@ -147,11 +215,15 @@
   const solved = new Array(ANSWERS.length).fill(false);
 
   // ---- Sounds ----
-  // Uses sndCorrect.wav and sndIncorrect.wav from the same folder as this page.
-  // If a file is missing or can't play, a simple built-in beep plays instead.
-  const sounds = {
-    correct: new Audio("sndCorrect.wav"),
-    incorrect: new Audio("sndIncorrect.wav")
+  // Correct and incorrect answers use built-in beeps made with code.
+  // Your files are used for two moments:
+  //   sndIncorrect.wav -> each step of the countdown
+  //   sndCorrect.wav   -> finishing the last puzzle
+  // Both files go in the same folder as this page. If one is missing,
+  // a built-in beep plays instead.
+  const files = {
+    tick: new Audio("sndIncorrect.wav"),
+    finish: new Audio("sndCorrect.wav")
   };
   let audioCtx = null;
 
@@ -163,6 +235,7 @@
   function beep(name) {
     try {
       const ctx = getAudioContext();
+      if (ctx.state === "suspended") ctx.resume();
       const good = name === "correct";
       const notes = good ? [660, 880] : [180, 140];
       notes.forEach((freq, n) => {
@@ -181,16 +254,16 @@
     } catch (error) { /* no sound available */ }
   }
 
-  function playSound(name) {
-    const audio = sounds[name];
+  function playFile(key, fallbackBeep) {
+    const audio = files[key];
     audio.currentTime = 0;
-    audio.play().catch(() => beep(name));
+    audio.play().catch(() => beep(fallbackBeep));
   }
 
   // Some browsers (Safari especially) only allow sound after a click,
   // so the Start button quietly "unlocks" audio for the rest of the visit.
   function unlockAudio() {
-    Object.values(sounds).forEach(audio => {
+    Object.values(files).forEach(audio => {
       audio.muted = true;
       audio.play()
         .then(() => { audio.pause(); audio.currentTime = 0; audio.muted = false; })
@@ -230,30 +303,40 @@
   }
 
   // ---- Timer ----
+  // Shows 00:00.000, and 1:00:00.000 once an hour has passed.
   const timerEl = document.getElementById("timer");
   let startTime = 0;
-  let timerId = null;
+  let timerFrame = 0;
 
   function formatTime(ms) {
-    const tenths = Math.floor(ms / 100) % 10;
-    const totalSeconds = Math.floor(ms / 1000);
+    const pad = (n, len) => String(n).padStart(len, "0");
+    const total = Math.floor(ms);
+    const millis = total % 1000;
+    const totalSeconds = Math.floor(total / 1000);
     const seconds = totalSeconds % 60;
-    const minutes = Math.floor(totalSeconds / 60);
-    return minutes + ":" + String(seconds).padStart(2, "0") + "." + tenths;
+    const totalMinutes = Math.floor(totalSeconds / 60);
+    const minutes = totalMinutes % 60;
+    const hours = Math.floor(totalMinutes / 60);
+    const text = pad(minutes, 2) + ":" + pad(seconds, 2) + "." + pad(millis, 3);
+    return hours > 0 ? hours + ":" + text : text;
   }
 
   function updateTimer() {
     timerEl.textContent = formatTime(performance.now() - startTime);
   }
 
+  function tickTimer() {
+    updateTimer();
+    timerFrame = requestAnimationFrame(tickTimer);
+  }
+
   function startTimer() {
     startTime = performance.now();
-    updateTimer();
-    timerId = setInterval(updateTimer, 100);
+    tickTimer();
   }
 
   function stopTimer() {
-    clearInterval(timerId);
+    cancelAnimationFrame(timerFrame);
     updateTimer();
   }
 
@@ -291,7 +374,7 @@
       status.textContent = "Incorrect";
       void status.offsetWidth;
       status.classList.add("fade");
-      playSound("incorrect");
+      beep("incorrect");
     }
 
     async function check() {
@@ -302,10 +385,13 @@
           status.className = "status good";
           input.disabled = true;
           button.disabled = true;
-          playSound("correct");
+          row.classList.add("solved");
           if (solved.every(Boolean)) {
             stopTimer();
+            playFile("finish", "correct");
             document.getElementById("done").hidden = false;
+          } else {
+            beep("correct");
           }
         } else {
           showIncorrect();
@@ -321,11 +407,11 @@
   });
 
   // ---- Animated background ----
-  // Colored squares drift upward in the left and right margins.
+  // Gray squares drift upward in the left and right margins.
   (function () {
     const canvas = document.getElementById("bg");
     const ctx = canvas.getContext("2d");
-    const COLORS = ["#e5484d", "#f2c14e", "#4c8dff", "#3fbf7f", "#ff9a3d", "#ece8fa"];
+    const SHADES = ["#ffffff", "#d0d0d0", "#a0a0a0", "#707070", "#4a4a4a"];
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let w = 0, h = 0, pieces = [], last = 0;
 
@@ -346,8 +432,8 @@
         spin: (Math.random() - 0.5) * 0.6,
         sway: 8 + Math.random() * 18,
         phase: Math.random() * Math.PI * 2,
-        color: COLORS[Math.floor(Math.random() * COLORS.length)],
-        alpha: 0.18 + Math.random() * 0.3
+        color: SHADES[Math.floor(Math.random() * SHADES.length)],
+        alpha: 0.1 + Math.random() * 0.25
       };
     }
 
@@ -403,13 +489,36 @@
     if (!reduceMotion) requestAnimationFrame(frame);
   })();
 
-  // ---- Start button ----
-  document.getElementById("start").addEventListener("click", () => {
-    unlockAudio();
+  // ---- Start button: fade to black, countdown, fade in the puzzles ----
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+  async function runIntro() {
+    const curtain = document.getElementById("curtain");
+    const count = document.getElementById("count");
+
+    curtain.classList.add("on");
+    await sleep(450);
     document.getElementById("start-screen").hidden = true;
     document.getElementById("game").hidden = false;
+
+    for (const word of ["3", "2", "1", "Go!"]) {
+      count.textContent = word;
+      count.classList.remove("flash");
+      void count.offsetWidth;
+      count.classList.add("flash");
+      playFile("tick", "incorrect");
+      await sleep(1000);
+    }
+
+    curtain.classList.remove("on");   // fades the black overlay away
     startTimer();
     document.getElementById("answer0").focus();
+  }
+
+  document.getElementById("start").addEventListener("click", event => {
+    event.currentTarget.disabled = true;
+    unlockAudio();
+    runIntro();
   });
 </script>
 </body>
