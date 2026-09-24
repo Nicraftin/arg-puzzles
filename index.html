@@ -215,12 +215,6 @@
     border-radius: 10px;
   }
 
-  #final-time {
-    margin-top: 4px;
-    font-family: Consolas, Menlo, "Courier New", monospace;
-    font-size: 1.1rem;
-  }
-
   /* Black overlay: fades to black on Start, shows the countdown, then fades away. */
   #curtain {
     position: fixed;
@@ -267,10 +261,7 @@
     <h1>Color + Noun → Answer</h1>
     <p id="timer">00:00.000</p>
     <div id="rows"></div>
-    <div id="done" hidden>
-      <div>Congratulations, you win!</div>
-      <div id="final-time"></div>
-    </div>
+    <div id="done" hidden>Congratulations, you win!</div>
   </div>
 </main>
 <div id="curtain" aria-hidden="true"><div id="count"></div></div>
@@ -487,7 +478,6 @@
           if (solved.every(Boolean)) {
             stopTimer();
             timerEl.classList.add("final");
-            document.getElementById("final-time").textContent = "Final time: " + timerEl.textContent;
             playFile("finish", "correct");
             document.getElementById("done").hidden = false;
             document.body.classList.add("victory");   // the colors come back
