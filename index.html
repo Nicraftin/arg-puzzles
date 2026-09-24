@@ -28,14 +28,21 @@
     padding: 48px 20px;
   }
   h1 { margin: 0 0 6px; font-size: 1.9rem; }
-  .lead { margin: 0 0 28px; color: var(--muted); }
+  #timer {
+    margin: 0 0 24px;
+    font-size: 1.4rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+  }
+  #start-screen { text-align: center; padding-top: 30vh; }
+  #start-screen button { padding: 14px 40px; font-size: 1.3rem; }
   .row {
     background: var(--panel);
     border-radius: 10px;
     padding: 14px 16px;
     margin-bottom: 14px;
   }
-  .row label { display: block; margin-bottom: 8px; font-weight: bold; }
+  .row label { display: block; margin-bottom: 10px; font-weight: bold; }
   .inputs { display: flex; gap: 10px; }
   input {
     flex: 1;
@@ -63,6 +70,12 @@
   .status { min-height: 1.5em; margin: 8px 0 0; font-size: 0.95rem; }
   .status.good { color: var(--good); }
   .status.bad { color: var(--bad); }
+  /* "Incorrect" stays fully visible for a moment, then fades out. */
+  .status.fade { animation: fadeOut 2.5s ease-out forwards; }
+  @keyframes fadeOut {
+    0%, 60% { opacity: 1; }
+    100% { opacity: 0; }
+  }
   #done {
     margin-top: 26px;
     padding: 18px;
@@ -73,27 +86,53 @@
     background: var(--good);
     border-radius: 10px;
   }
-  #done[hidden] { display: none; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <main>
-  <h1>Enter your answers</h1>
-  <p class="lead">Type the answer to each puzzle and press Check.</p>
-  <div id="rows"></div>
-  <div id="done" hidden>Congratulations! You got all 4 correct.</div>
+  <div id="start-screen">
+    <button id="start" type="button">Start</button>
+  </div>
+
+  <div id="game" hidden>
+    <h1>A color and a noun will lead you to the answers</h1>
+    <p id="timer">0:00.0</p>
+    <div id="rows"></div>
+    <div id="done" hidden>Congratulations! You got all 4 correct.</div>
+  </div>
 </main>
 
 <script>
   // Answers are stored as hashes, so they can't be read from this page.
+  // "hashes" lists every accepted answer for that puzzle.
   // "contains: true" means the answer counts if any single word matches
   // (so "Henry Dunant" works for puzzle 3).
   const SALT = "nicraftin-arg:";
   const ANSWERS = [
-    { hash: "fea80294e9bb5b8fc1b0f0052e84de08a73809e469f47123f3f0137c6ef29acd", contains: false },
-    { hash: "80a62a9b1f91857fc089a24f3192947bfc13e4033f2eec7db6edc3141484803e", contains: false },
-    { hash: "7485e93dd353d1bacde1779aff6837a0f222f79e10dcb2ea3be3d2ba5b2ad0b1", contains: true  },
-    { hash: "f7cc7ec9a26dca8c0e19b254b47cf9ebba7daaf9e976c3b8c181b88df06d6390", contains: false }
+    {
+      prompt: `A "Gaster colored thing" in a hay stack also sounds like this.`,
+      hashes: ["fea80294e9bb5b8fc1b0f0052e84de08a73809e469f47123f3f0137c6ef29acd"],
+      contains: false
+    },
+    {
+      prompt: `This #5C6D7C needs help improving on Reddit, they're fighting against this skin.`,
+      hashes: [
+        "80a62a9b1f91857fc089a24f3192947bfc13e4033f2eec7db6edc3141484803e",  // undying
+        "4b44b4e2253305275d184865b72c209a2860f6d3240a0c2002e22bb1bf6b8290"   // undying mirage
+      ],
+      contains: false
+    },
+    {
+      prompt: `The father of the U' D L' U U D D L U' D L.`,
+      hashes: ["7485e93dd353d1bacde1779aff6837a0f222f79e10dcb2ea3be3d2ba5b2ad0b1"],
+      contains: true
+    },
+    {
+      prompt: `Wordle games go like: HUMAN WAVES HUMAN OCEAN HUMAN, SAILS SAILS SAILS SAILS HUMAN, VALVE SAILS VALVE SAILS VALVE. The answer is the original ALBUM.`,
+      hashes: ["f7cc7ec9a26dca8c0e19b254b47cf9ebba7daaf9e976c3b8c181b88df06d6390"],
+      contains: false
+    }
   ];
 
   const solved = new Array(ANSWERS.length).fill(false);
@@ -119,22 +158,51 @@
   async function isCorrect(input, answer) {
     const text = clean(input);
     if (!text) return false;
-    if (await hash(text) === answer.hash) return true;
+    if (answer.hashes.includes(await hash(text))) return true;
     if (answer.contains) {
       for (const word of text.split(/[^a-z0-9]+/)) {
-        if (word && await hash(word) === answer.hash) return true;
+        if (word && answer.hashes.includes(await hash(word))) return true;
       }
     }
     return false;
   }
 
+  // ---- Timer ----
+  const timerEl = document.getElementById("timer");
+  let startTime = 0;
+  let timerId = null;
+
+  function formatTime(ms) {
+    const tenths = Math.floor(ms / 100) % 10;
+    const totalSeconds = Math.floor(ms / 1000);
+    const seconds = totalSeconds % 60;
+    const minutes = Math.floor(totalSeconds / 60);
+    return minutes + ":" + String(seconds).padStart(2, "0") + "." + tenths;
+  }
+
+  function updateTimer() {
+    timerEl.textContent = formatTime(performance.now() - startTime);
+  }
+
+  function startTimer() {
+    startTime = performance.now();
+    updateTimer();
+    timerId = setInterval(updateTimer, 100);
+  }
+
+  function stopTimer() {
+    clearInterval(timerId);
+    updateTimer();
+  }
+
+  // ---- Puzzle rows ----
   const rows = document.getElementById("rows");
 
   ANSWERS.forEach((answer, i) => {
     const row = document.createElement("div");
     row.className = "row";
     row.innerHTML =
-      '<label for="answer' + i + '">Puzzle ' + (i + 1) + '</label>' +
+      '<label for="answer' + i + '"></label>' +
       '<div class="inputs">' +
         '<input id="answer' + i + '" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">' +
         '<button type="button">Check</button>' +
@@ -142,9 +210,26 @@
       '<p class="status" aria-live="polite"></p>';
     rows.appendChild(row);
 
+    const label = row.querySelector("label");
     const input = row.querySelector("input");
     const button = row.querySelector("button");
     const status = row.querySelector(".status");
+
+    label.textContent = answer.prompt;
+
+    // Clear the message once the fade-out has finished.
+    status.addEventListener("animationend", () => {
+      status.textContent = "";
+      status.className = "status";
+    });
+
+    function showIncorrect() {
+      // Restart the fade every time, so each press visibly does something.
+      status.className = "status bad";
+      status.textContent = "Incorrect";
+      void status.offsetWidth;
+      status.classList.add("fade");
+    }
 
     async function check() {
       try {
@@ -155,20 +240,28 @@
           input.disabled = true;
           button.disabled = true;
           if (solved.every(Boolean)) {
+            stopTimer();
             document.getElementById("done").hidden = false;
           }
         } else {
-          status.textContent = "Not quite. Try again.";
-          status.className = "status bad";
+          showIncorrect();
         }
       } catch (error) {
-        status.textContent = "Something went wrong. Try opening the page in a different browser.";
         status.className = "status bad";
+        status.textContent = "Something went wrong. Try opening the page in a different browser.";
       }
     }
 
     button.addEventListener("click", check);
     input.addEventListener("keydown", e => { if (e.key === "Enter") check(); });
+  });
+
+  // ---- Start button ----
+  document.getElementById("start").addEventListener("click", () => {
+    document.getElementById("start-screen").hidden = true;
+    document.getElementById("game").hidden = false;
+    startTimer();
+    document.getElementById("answer0").focus();
   });
 </script>
 </body>
