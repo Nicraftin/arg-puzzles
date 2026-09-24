@@ -12,6 +12,8 @@
     --text: #ececec;
     --muted: #9a9a9a;
     --bright: #ffffff;
+    --good: #7be0a4;
+    --bad: #ff8a8a;
   }
   * { box-sizing: border-box; }
   body {
@@ -42,7 +44,16 @@
     font-size: 1.6rem;
     color: var(--bright);
   }
-  #start-screen { text-align: center; padding-top: 30vh; }
+  /* Plain black start screen, with the button in the exact center. */
+  #start-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+  }
   #start-screen button { padding: 14px 40px; font-size: 1.3rem; }
 
   .row {
@@ -78,8 +89,8 @@
   button:disabled, input:disabled { opacity: 0.6; cursor: default; }
 
   .status { min-height: 1.5em; margin: 8px 0 0; font-size: 0.95rem; }
-  .status.good { color: var(--bright); }
-  .status.bad { color: var(--muted); }
+  .status.good { color: var(--good); }
+  .status.bad { color: var(--bad); }
   /* "Incorrect" stays visible for a moment, then fades out. */
   .status.fade { animation: fadeOut 1.8s ease-out forwards; }
   @keyframes fadeOut {
@@ -87,36 +98,46 @@
     100% { opacity: 0; }
   }
 
-  /* A solved puzzle box pulses once, then keeps a white outline. */
+  /* A solved puzzle box pulses once, then keeps a green outline. */
   .row.solved {
     box-shadow:
-      inset 0 0 0 2px var(--text),
-      0 0 18px rgba(255, 255, 255, 0.12),
-      0 0 0 14px rgba(255, 255, 255, 0);
+      inset 0 0 0 2px var(--good),
+      0 0 18px rgba(123, 224, 164, 0.18),
+      0 0 0 14px rgba(123, 224, 164, 0);
     animation: solvedPulse 0.9s ease-out;
   }
   @keyframes solvedPulse {
     0% {
       transform: scale(1);
       box-shadow:
-        inset 0 0 0 0 var(--bright),
-        0 0 0 rgba(255, 255, 255, 0),
-        0 0 0 0 rgba(255, 255, 255, 0.6);
+        inset 0 0 0 0 var(--good),
+        0 0 0 rgba(123, 224, 164, 0),
+        0 0 0 0 rgba(123, 224, 164, 0.6);
     }
     30% {
       transform: scale(1.025);
       box-shadow:
-        inset 0 0 0 2px var(--bright),
-        0 0 30px rgba(255, 255, 255, 0.4),
-        0 0 0 5px rgba(255, 255, 255, 0.3);
+        inset 0 0 0 2px var(--good),
+        0 0 30px rgba(123, 224, 164, 0.45),
+        0 0 0 5px rgba(123, 224, 164, 0.3);
     }
     100% {
       transform: scale(1);
       box-shadow:
-        inset 0 0 0 2px var(--text),
-        0 0 18px rgba(255, 255, 255, 0.12),
-        0 0 0 14px rgba(255, 255, 255, 0);
+        inset 0 0 0 2px var(--good),
+        0 0 18px rgba(123, 224, 164, 0.18),
+        0 0 0 14px rgba(123, 224, 164, 0);
     }
+  }
+
+  /* A wrong answer gives the puzzle box a quick side-to-side shake. */
+  .row.shake { animation: shake 0.35s ease-out; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-7px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(3px); }
   }
 
   #done {
@@ -126,7 +147,7 @@
     font-size: 1.3rem;
     font-weight: bold;
     color: #111;
-    background: var(--text);
+    background: var(--good);
     border-radius: 10px;
   }
 
@@ -166,25 +187,22 @@
 </head>
 <body>
 <canvas id="bg" aria-hidden="true"></canvas>
-<main>
-  <div id="start-screen">
-    <button id="start" type="button">Start</button>
-  </div>
+<div id="start-screen">
+  <button id="start" type="button">Start</button>
+</div>
 
+<main>
   <div id="game" hidden>
     <h1>Color + Noun → Answer</h1>
     <p id="timer">00:00.000</p>
     <div id="rows"></div>
-    <div id="done" hidden>Congratulations! You got all 4 correct.</div>
+    <div id="done" hidden>Congratulations, you win!</div>
   </div>
 </main>
 <div id="curtain" aria-hidden="true"><div id="count"></div></div>
 
 <script>
   // Answers are stored as hashes, so they can't be read from this page.
-  // "hashes" lists every accepted answer for that puzzle.
-  // "contains: true" means the answer counts if any single word matches
-  // (so "Henry Dunant" works for puzzle 3).
   const SALT = "nicraftin-arg:";
   const ANSWERS = [
     {
@@ -195,8 +213,8 @@
     {
       prompt: `This #5C6D7C needs help improving on Reddit, they're fighting against this skin.`,
       hashes: [
-        "80a62a9b1f91857fc089a24f3192947bfc13e4033f2eec7db6edc3141484803e",  // undying
-        "4b44b4e2253305275d184865b72c209a2860f6d3240a0c2002e22bb1bf6b8290"   // undying mirage
+        "80a62a9b1f91857fc089a24f3192947bfc13e4033f2eec7db6edc3141484803e",
+        "4b44b4e2253305275d184865b72c209a2860f6d3240a0c2002e22bb1bf6b8290"
       ],
       contains: false
     },
@@ -216,14 +234,16 @@
 
   // ---- Sounds ----
   // Correct and incorrect answers use built-in beeps made with code.
-  // Your files are used for two moments:
-  //   sndIncorrect.wav -> each step of the countdown
-  //   sndCorrect.wav   -> finishing the last puzzle
-  // Both files go in the same folder as this page. If one is missing,
+  // Your files are used for three moments:
+  //   sndIncorrect.wav -> the 3, 2, 1 steps of the countdown
+  //   sndGo.wav        -> the "Go!" step
+  //   muVictory.mp3    -> finishing the last puzzle
+  // All files go in the same folder as this page. If one is missing,
   // a built-in beep plays instead.
   const files = {
     tick: new Audio("sndIncorrect.wav"),
-    finish: new Audio("sndCorrect.wav")
+    go: new Audio("sndGo.wav"),
+    finish: new Audio("muVictory.mp3")
   };
   let audioCtx = null;
 
@@ -369,11 +389,14 @@
     });
 
     function showIncorrect() {
-      // Restart the fade every time, so each press visibly does something.
+      // Restart the message fade and the shake every time,
+      // so each press visibly does something.
       status.className = "status bad";
       status.textContent = "Incorrect";
+      row.classList.remove("shake");
       void status.offsetWidth;
       status.classList.add("fade");
+      row.classList.add("shake");
       beep("incorrect");
     }
 
@@ -385,6 +408,7 @@
           status.className = "status good";
           input.disabled = true;
           button.disabled = true;
+          row.classList.remove("shake");
           row.classList.add("solved");
           if (solved.every(Boolean)) {
             stopTimer();
@@ -506,7 +530,8 @@
       count.classList.remove("flash");
       void count.offsetWidth;
       count.classList.add("flash");
-      playFile("tick", "incorrect");
+      if (word === "Go!") playFile("go", "correct");
+      else playFile("tick", "incorrect");
       await sleep(1000);
     }
 
