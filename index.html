@@ -22,6 +22,42 @@
     color: var(--text);
     font-family: "Trebuchet MS", system-ui, sans-serif;
     line-height: 1.5;
+    transition: background-color 1.5s ease;
+  }
+  /* After winning, the page turns dark blue and the colors come back. */
+  body.victory {
+    --bg: #050a1f;
+    --panel: #0d1633;
+    --line: #22346b;
+  }
+
+  /* Animated RGB outline around the edges of the page (shown after winning). */
+  @property --angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+  }
+  #rgb-border {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    padding: 5px;
+    pointer-events: none;
+    background: conic-gradient(from var(--angle),
+      #ff2d55, #ffb300, #2ee66b, #00c2ff, #7c4dff, #ff2d55);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 1.5s ease;
+  }
+  body.victory #rgb-border {
+    opacity: 1;
+    animation: spinBorder 4s linear infinite;
+  }
+  @keyframes spinBorder {
+    to { --angle: 360deg; }
   }
   #bg {
     position: fixed;
@@ -61,6 +97,7 @@
     border-radius: 10px;
     padding: 14px 16px;
     margin-bottom: 14px;
+    transition: background-color 1.5s ease;
   }
   .row label { display: block; margin-bottom: 10px; font-weight: bold; }
   .inputs { display: flex; gap: 10px; }
@@ -73,6 +110,7 @@
     background: var(--bg);
     border: 2px solid var(--line);
     border-radius: 6px;
+    transition: background-color 1.5s ease, border-color 0.4s ease;
   }
   input:focus { outline: none; border-color: var(--text); }
   button {
@@ -187,6 +225,7 @@
 </head>
 <body>
 <canvas id="bg" aria-hidden="true"></canvas>
+<div id="rgb-border" aria-hidden="true"></div>
 <div id="start-screen">
   <button id="start" type="button">Start</button>
 </div>
@@ -264,7 +303,7 @@
         const t = ctx.currentTime + n * 0.12;
         osc.type = good ? "sine" : "sawtooth";
         osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.15, t);
+        gain.gain.setValueAtTime(0.3, t);   // about 6 dB louder than before
         gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
         osc.connect(gain);
         gain.connect(ctx.destination);
@@ -414,6 +453,8 @@
             stopTimer();
             playFile("finish", "correct");
             document.getElementById("done").hidden = false;
+            document.body.classList.add("victory");   // the colors come back
+            background.celebrate();
           } else {
             beep("correct");
           }
@@ -431,11 +472,23 @@
   });
 
   // ---- Animated background ----
-  // Gray squares drift upward in the left and right margins.
-  (function () {
+  // Squares drift upward in the left and right margins:
+  // gray at first, colorful after winning.
+  const background = (function () {
     const canvas = document.getElementById("bg");
     const ctx = canvas.getContext("2d");
     const SHADES = ["#ffffff", "#d0d0d0", "#a0a0a0", "#707070", "#4a4a4a"];
+    const COLORS = ["#e5484d", "#f2c14e", "#4c8dff", "#3fbf7f", "#ff9a3d", "#ece8fa"];
+    let colorful = false;
+
+    function pickColor() {
+      const list = colorful ? COLORS : SHADES;
+      return list[Math.floor(Math.random() * list.length)];
+    }
+
+    function pickAlpha() {
+      return colorful ? 0.2 + Math.random() * 0.3 : 0.1 + Math.random() * 0.25;
+    }
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let w = 0, h = 0, pieces = [], last = 0;
 
@@ -456,8 +509,8 @@
         spin: (Math.random() - 0.5) * 0.6,
         sway: 8 + Math.random() * 18,
         phase: Math.random() * Math.PI * 2,
-        color: SHADES[Math.floor(Math.random() * SHADES.length)],
-        alpha: 0.1 + Math.random() * 0.25
+        color: pickColor(),
+        alpha: pickAlpha()
       };
     }
 
@@ -511,6 +564,19 @@
     window.addEventListener("resize", resize);
     resize();
     if (!reduceMotion) requestAnimationFrame(frame);
+
+    // Called when the player wins: the squares turn colorful, one by one.
+    function celebrate() {
+      colorful = true;
+      pieces.forEach(p => {
+        const recolor = () => { p.color = pickColor(); p.alpha = pickAlpha(); };
+        if (reduceMotion) recolor();
+        else setTimeout(recolor, Math.random() * 1500);
+      });
+      if (reduceMotion) draw(0);
+    }
+
+    return { celebrate };
   })();
 
   // ---- Start button: fade to black, countdown, fade in the puzzles ----
