@@ -179,7 +179,7 @@
   }
 
   #done {
-    margin-top: 26px;
+    margin-top: 0;
     padding: 18px;
     text-align: center;
     font-size: 1.3rem;
@@ -303,7 +303,7 @@
         const t = ctx.currentTime + n * 0.12;
         osc.type = good ? "sine" : "sawtooth";
         osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.3, t);   // about 6 dB louder than before
+        gain.gain.setValueAtTime(good ? 0.6 : 0.3, t);   // "correct" is 6 dB louder than "incorrect"
         gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
         osc.connect(gain);
         gain.connect(ctx.destination);
@@ -478,7 +478,7 @@
     const canvas = document.getElementById("bg");
     const ctx = canvas.getContext("2d");
     const SHADES = ["#ffffff", "#d0d0d0", "#a0a0a0", "#707070", "#4a4a4a"];
-    const COLORS = ["#e5484d", "#f2c14e", "#4c8dff", "#3fbf7f", "#ff9a3d", "#ece8fa"];
+    const COLORS = ["#e5484d", "#3fbf7f", "#4c8dff", "#f2c14e"];
     let colorful = false;
 
     function pickColor() {
