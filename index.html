@@ -194,6 +194,9 @@
     }
   }
 
+  /* Boxes restored from saved progress skip the pulse. */
+  .row.solved.restored { animation: none; }
+
   /* A wrong answer gives the puzzle box a quick side-to-side shake. */
   .row.shake { animation: shake 0.35s ease-out; }
   @keyframes shake {
@@ -387,6 +390,58 @@
     return false;
   }
 
+  // ---- Saved progress ----
+  // Progress is kept in this browser only (localStorage): which puzzles were
+  // solved (with the text typed) and how much time has passed.
+  // Winning clears it, so the next visit starts fresh.
+  const STORAGE_KEY = "arg-progress-v1";
+  let running = false;    // true while the timer is counting
+  let finished = false;   // true once the player has won
+  let saveTimerId = null;
+
+  function loadProgress() {
+    const empty = { solved: {}, elapsed: 0 };
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (!saved || typeof saved !== "object") return empty;
+      const result = { solved: {}, elapsed: 0 };
+      if (Number.isFinite(saved.elapsed) && saved.elapsed > 0) result.elapsed = saved.elapsed;
+      if (saved.solved && typeof saved.solved === "object") {
+        for (const key of Object.keys(saved.solved)) {
+          const i = Number(key);
+          if (Number.isInteger(i) && i >= 0 && i < ANSWERS.length && typeof saved.solved[key] === "string") {
+            result.solved[i] = saved.solved[key];
+          }
+        }
+      }
+      // A finished game is never saved, so a full set means something is off.
+      if (Object.keys(result.solved).length >= ANSWERS.length) return empty;
+      return result;
+    } catch (error) {
+      return empty;
+    }
+  }
+
+  const progress = loadProgress();
+
+  function saveProgress() {
+    if (!running || finished) return;
+    progress.elapsed = performance.now() - startTime;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    } catch (error) { /* saving isn't available; the game still works */ }
+  }
+
+  function clearProgress() {
+    try { localStorage.removeItem(STORAGE_KEY); } catch (error) { /* ignore */ }
+  }
+
+  // Also save when the player leaves or switches away from the page.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") saveProgress();
+  });
+  window.addEventListener("pagehide", saveProgress);
+
   // ---- Timer ----
   // Shows 00:00.000, and 1:00:00.000 once an hour has passed.
   const timerEl = document.getElementById("timer");
@@ -416,17 +471,26 @@
   }
 
   function startTimer() {
-    startTime = performance.now();
+    // Picks up from the saved time, if there is one.
+    startTime = performance.now() - progress.elapsed;
+    running = true;
     tickTimer();
+    saveTimerId = setInterval(saveProgress, 1000);
   }
 
   function stopTimer() {
+    running = false;
     cancelAnimationFrame(timerFrame);
+    clearInterval(saveTimerId);
     updateTimer();
   }
 
+  // Show the saved time right away when the player comes back.
+  timerEl.textContent = formatTime(progress.elapsed);
+
   // ---- Puzzle rows ----
   const rows = document.getElementById("rows");
+  const restorers = [];
 
   ANSWERS.forEach((answer, i) => {
     const row = document.createElement("div");
@@ -446,6 +510,19 @@
     const status = row.querySelector(".status");
 
     label.textContent = answer.prompt;
+
+    function markSolved(restored) {
+      solved[i] = true;
+      status.textContent = "Correct!";
+      status.className = "status good";
+      input.disabled = true;
+      button.disabled = true;
+      row.classList.remove("shake");
+      row.classList.add("solved");
+      if (restored) row.classList.add("restored");   // no pulse for restored boxes
+    }
+
+    restorers[i] = text => { input.value = text; markSolved(true); };
 
     // Clear the message once the fade-out has finished.
     status.addEventListener("animationend", () => {
@@ -468,14 +545,11 @@
     async function check() {
       try {
         if (await isCorrect(input.value, answer)) {
-          solved[i] = true;
-          status.textContent = "Correct!";
-          status.className = "status good";
-          input.disabled = true;
-          button.disabled = true;
-          row.classList.remove("shake");
-          row.classList.add("solved");
+          markSolved(false);
+          progress.solved[i] = input.value;
           if (solved.every(Boolean)) {
+            finished = true;   // winning resets the saved progress
+            clearProgress();
             stopTimer();
             timerEl.classList.add("final");
             playFile("finish", "correct");
@@ -484,6 +558,7 @@
             background.celebrate();
           } else {
             beep("correct");
+            saveProgress();
           }
         } else {
           showIncorrect();
@@ -497,6 +572,18 @@
     button.addEventListener("click", check);
     input.addEventListener("keydown", e => { if (e.key === "Enter") check(); });
   });
+
+  // ---- Restore saved progress ----
+  // Saved answers are checked again, so editing the saved data can't skip a puzzle.
+  (async function restoreProgress() {
+    try {
+      for (const key of Object.keys(progress.solved)) {
+        const i = Number(key);
+        if (await isCorrect(progress.solved[key], ANSWERS[i])) restorers[i](progress.solved[key]);
+        else delete progress.solved[key];
+      }
+    } catch (error) { /* couldn't restore; start fresh */ }
+  })();
 
   // ---- Animated background ----
   // Squares drift upward in the left and right margins:
@@ -630,7 +717,13 @@
 
     curtain.classList.remove("on");   // fades the black overlay away
     startTimer();
-    document.getElementById("answer0").focus();
+    const firstOpen = document.querySelector("#rows input:not(:disabled)");
+    if (firstOpen) firstOpen.focus();
+  }
+
+  // Returning players see "Continue" instead of "Start".
+  if (progress.elapsed > 0 || Object.keys(progress.solved).length > 0) {
+    document.getElementById("start").textContent = "Continue";
   }
 
   document.getElementById("start").addEventListener("click", event => {
