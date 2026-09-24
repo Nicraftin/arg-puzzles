@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARG puzzles</title>
+<style>
+  :root {
+    --bg: #15132a;
+    --panel: #201d3d;
+    --text: #ece8fa;
+    --muted: #a9a3c9;
+    --accent: #f2c14e;
+    --good: #7be0a4;
+    --bad: #ff8a8a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Trebuchet MS", system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  main {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 48px 20px;
+  }
+  h1 { margin: 0 0 6px; font-size: 1.9rem; }
+  .lead { margin: 0 0 28px; color: var(--muted); }
+  .row {
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+  }
+  .row label { display: block; margin-bottom: 8px; font-weight: bold; }
+  .inputs { display: flex; gap: 10px; }
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    font-size: 1rem;
+    color: var(--text);
+    background: var(--bg);
+    border: 2px solid #3a3666;
+    border-radius: 6px;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  button {
+    padding: 10px 18px;
+    font-size: 1rem;
+    font-weight: bold;
+    color: #1b1730;
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  button:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+  button:disabled, input:disabled { opacity: 0.6; cursor: default; }
+  .status { min-height: 1.5em; margin: 8px 0 0; font-size: 0.95rem; }
+  .status.good { color: var(--good); }
+  .status.bad { color: var(--bad); }
+  #done {
+    margin-top: 26px;
+    padding: 18px;
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #1b1730;
+    background: var(--good);
+    border-radius: 10px;
+  }
+  #done[hidden] { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Enter your answers</h1>
+  <p class="lead">Type the answer to each puzzle and press Check.</p>
+  <div id="rows"></div>
+  <div id="done" hidden>Congratulations! You got all 4 correct.</div>
+</main>
+
+<script>
+  // Answers are stored as hashes, so they can't be read from this page.
+  // "contains: true" means the answer counts if any single word matches
+  // (so "Henry Dunant" works for puzzle 3).
+  const SALT = "nicraftin-arg:";
+  const ANSWERS = [
+    { hash: "fea80294e9bb5b8fc1b0f0052e84de08a73809e469f47123f3f0137c6ef29acd", contains: false },
+    { hash: "80a62a9b1f91857fc089a24f3192947bfc13e4033f2eec7db6edc3141484803e", contains: false },
+    { hash: "7485e93dd353d1bacde1779aff6837a0f222f79e10dcb2ea3be3d2ba5b2ad0b1", contains: true  },
+    { hash: "f7cc7ec9a26dca8c0e19b254b47cf9ebba7daaf9e976c3b8c181b88df06d6390", contains: false }
+  ];
+
+  const solved = new Array(ANSWERS.length).fill(false);
+
+  // Lowercase, remove accents, collapse extra spaces, trim.
+  function clean(text) {
+    return text
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  async function hash(text) {
+    const bytes = new TextEncoder().encode(SALT + text);
+    const buffer = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(buffer))
+      .map(b => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  async function isCorrect(input, answer) {
+    const text = clean(input);
+    if (!text) return false;
+    if (await hash(text) === answer.hash) return true;
+    if (answer.contains) {
+      for (const word of text.split(/[^a-z0-9]+/)) {
+        if (word && await hash(word) === answer.hash) return true;
+      }
+    }
+    return false;
+  }
+
+  const rows = document.getElementById("rows");
+
+  ANSWERS.forEach((answer, i) => {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML =
+      '<label for="answer' + i + '">Puzzle ' + (i + 1) + '</label>' +
+      '<div class="inputs">' +
+        '<input id="answer' + i + '" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+        '<button type="button">Check</button>' +
+      '</div>' +
+      '<p class="status" aria-live="polite"></p>';
+    rows.appendChild(row);
+
+    const input = row.querySelector("input");
+    const button = row.querySelector("button");
+    const status = row.querySelector(".status");
+
+    async function check() {
+      try {
+        if (await isCorrect(input.value, answer)) {
+          solved[i] = true;
+          status.textContent = "Correct!";
+          status.className = "status good";
+          input.disabled = true;
+          button.disabled = true;
+          if (solved.every(Boolean)) {
+            document.getElementById("done").hidden = false;
+          }
+        } else {
+          status.textContent = "Not quite. Try again.";
+          status.className = "status bad";
+        }
+      } catch (error) {
+        status.textContent = "Something went wrong. Try opening the page in a different browser.";
+        status.className = "status bad";
+      }
+    }
+
+    button.addEventListener("click", check);
+    input.addEventListener("keydown", e => { if (e.key === "Enter") check(); });
+  });
+</script>
+</body>
+</html>
